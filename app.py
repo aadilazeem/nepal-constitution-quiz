@@ -204,7 +204,7 @@ if not st.session_state.quiz_started:
         
         if st.button("Start Challenge 🚀", use_container_width=True):
             start_quiz()
-            st.experimental_rerun()
+            st.rerun()
 
 # 2. RESULTS SCREEN
 elif st.session_state.show_results:
@@ -230,7 +230,7 @@ elif st.session_state.show_results:
             st.session_state.user_answers = {}
             st.session_state.show_results = False
             st.session_state.quiz_started = False
-            st.experimental_rerun()
+            st.rerun()
 
 # 3. MAIN QUIZ INTERFACE
 else:
@@ -327,7 +327,7 @@ else:
                 if st.button("Yes, I mastered this (+4 Pts) ", key=f"fc_btn_{curr_q['id']}"):
                     st.session_state.score += 4
                     st.session_state.user_answers[curr_q['id']] = {'user_choice': 0, 'is_correct': True, 'correct_ans': 0}
-                    st.experimental_rerun()
+                    st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -337,14 +337,14 @@ else:
     with col_back:
         if st.button("⬅️ Backward", disabled=(st.session_state.current_index == 0)):
             prev_question()
-            st.experimental_rerun()
+            st.rerun()
             
     with col_next:
         if st.session_state.current_index == len(questions_db) - 1:
             if st.button("Finish & Results 🏁"):
                 st.session_state.show_results = True
-                st.experimental_rerun()
+                st.rerun()
         else:
             if st.button("Forward ➡️"):
                 next_question()
-                st.experimental_rerun()
+                st.rerun()
