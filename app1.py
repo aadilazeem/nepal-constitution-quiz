@@ -498,7 +498,7 @@ def show_completion_screen():
     # Final Action
     if st.button("🔄 Start New Quiz", type="primary"):
         st.session_state.initialized = False # Re-initialize state for full reset
-        st.experimental_rerun()
+        st.rerun()
 
 # --- Main Application Logic ---
 
@@ -559,7 +559,7 @@ def main():
         st.session_state.difficulty = new_difficulty
         st.session_state.section = new_section
         reset_deck()
-        st.experimental_rerun()
+        st.rerun()
         return
 
     display_stats()
