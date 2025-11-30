@@ -202,7 +202,7 @@ if not st.session_state.quiz_started:
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("Start Challenge 🚀", use_container_width=True):
+        if st.button("Start to practice ", use_container_width=True):
             start_quiz()
             st.rerun()
 

@@ -1,0 +1,373 @@
+import streamlit as st
+import random
+import json
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
+from abc import ABC, abstractmethod
+
+# ==================== DATA CLASSES ====================
+
+@dataclass
+class Question:
+    """Base question data structure"""
+    id: int
+    section: str
+    question: str
+    answer: str
+    details: str
+    level: str
+    topic: str = ""
+    keywords: str = ""
+
+@dataclass
+class MCQQuestion(Question):
+    """MCQ-specific question"""
+    options: Dict[str, str] = field(default_factory=dict)
+
+@dataclass
+class NewsItem:
+    """Current affairs news item"""
+    id: int
+    title: str
+    summary: str
+    section: str
+    level: str
+
+# ==================== CONSTANTS ====================
+
+class SyllabusSection:
+    LAW = "Law & Justice"
+    ADMIN = "Public Administration"
+    CONST = "Constitution"
+
+class Config:
+    LEVELS = ["Basic", "Medium", "Hard"]
+    RETIREMENT_AGE = 58
+    SUPREME_COURT_JUSTICES = 20
+    
+# ==================== DATA MANAGER ====================
+
+class DataManager:
+    """Centralized data management"""
+    
+    def __init__(self):
+        self.flashcards = self._load_flashcards()
+        self.mcqs = self._load_mcqs()
+        self.news = self._load_news()
+    
+    def _load_flashcards(self) -> List[Question]:
+        """Load flashcard questions"""
+        raw_data = [
+            {"id": 1, "section": SyllabusSection.CONST, "topic": "Sovereignty", "question": "In whom is the sovereignty and state power of Nepal vested?", "answer": "The Nepali People.", "details": "Article 2.", "keywords": "Sovereignty Nepal Article 2", "level": "Basic"},
+            {"id": 2, "section": SyllabusSection.CONST, "topic": "National Animal", "question": "What is the National Animal of Nepal according to the Constitution?", "answer": "Cow (Gai).", "details": "Article 9(3) / Schedule-3.", "keywords": "National Animal Nepal Cow", "level": "Basic"},
+            {"id": 3, "section": SyllabusSection.CONST, "topic": "Right to Information", "question": "Which Article guarantees the Right to Information (RTI)?", "answer": "Article 27.", "details": "It is a Fundamental Right.", "keywords": "RTI Article 27 Nepal", "level": "Basic"},
+            {"id": 4, "section": SyllabusSection.ADMIN, "topic": "Retirement Age", "question": "What is the retirement age for Civil Servants in Nepal?", "answer": "58 Years.", "details": "Civil Service Act.", "keywords": "Civil Service Retirement Age Nepal", "level": "Basic"},
+            {"id": 5, "section": SyllabusSection.LAW, "topic": "Habeas Corpus", "question": "Which Writ literally means 'Show me the body'?", "answer": "Habeas Corpus.", "details": "Used to secure the release of an unlawfully detained person.", "keywords": "Habeas Corpus Writ Meaning", "level": "Basic"},
+        ]
+        return [Question(**item) for item in raw_data]
+    
+    def _load_mcqs(self) -> List[MCQQuestion]:
+        """Load MCQ questions"""
+        raw_data = [
+            {"id": 1, "section": SyllabusSection.CONST, "question": "In whom is the sovereignty and state power of Nepal vested?", "options": {"A": "The President", "B": "The Parliament", "C": "The Nepali People", "D": "The Council of Ministers"}, "answer": "C", "details": "Article 2 of the Constitution states sovereignty is vested in the Nepali people.", "level": "Basic", "topic": "Sovereignty"},
+            {"id": 2, "section": SyllabusSection.CONST, "question": "What is the National Animal of Nepal according to the Constitution?", "options": {"A": "Tiger", "B": "Rhino", "C": "Cow (Gai)", "D": "Musk Deer"}, "answer": "C", "details": "Article 9(3) / Schedule-3.", "level": "Basic", "topic": "National Symbols"},
+            {"id": 3, "section": SyllabusSection.CONST, "question": "Which Article guarantees the Right to Information (RTI)?", "options": {"A": "Article 16", "B": "Article 27", "C": "Article 33", "D": "Article 46"}, "answer": "B", "details": "Article 27 guarantees the right to demand and receive information.", "level": "Basic", "topic": "Fundamental Rights"},
+            {"id": 41, "section": SyllabusSection.CONST, "question": "For how long after the appointment of a PM can a No Confidence Motion NOT be tabled?", "options": {"A": "6 Months", "B": "1 Year", "C": "2 Years", "D": "No limit"}, "answer": "C", "details": "Article 100(4).", "level": "Medium", "topic": "Parliament"},
+            {"id": 81, "section": SyllabusSection.CONST, "question": "Which subject cannot be amended in the Constitution?", "options": {"A": "Fundamental Rights", "B": "Sovereignty & Territorial Integrity", "C": "Federalism", "D": "Secularism"}, "answer": "B", "details": "Article 274(1).", "level": "Hard", "topic": "Amendment"},
+        ]
+        return [MCQQuestion(**item) for item in raw_data]
+    
+    def _load_news(self) -> List[NewsItem]:
+        """Load current affairs news"""
+        raw_data = [
+            {"id": 301, "title": "Approval of Federal Civil Service Bill Draft", "summary": "The government approved the draft of the long-awaited Federal Civil Service Bill, aiming to finalize the administrative structure under the federal system and streamline recruitment.", "section": SyllabusSection.ADMIN, "level": "Hard"},
+            {"id": 302, "title": "E-Governance Portal Integration Milestone", "summary": "The Digital Nepal Framework reached a milestone with the integration of over 50 public service portals into a single e-governance platform for citizens.", "section": SyllabusSection.ADMIN, "level": "Medium"},
+        ]
+        return [NewsItem(**item) for item in raw_data]
+    
+    def filter_data(self, data_list: List, section: str, level: str) -> List:
+        """Generic filter for any data type"""
+        filtered = data_list
+        if section != "All":
+            filtered = [item for item in filtered if item.section == section]
+        if level != "All":
+            filtered = [item for item in filtered if item.level == level]
+        return filtered
+
+# ==================== SESSION STATE MANAGER ====================
+
+class SessionManager:
+    """Manages Streamlit session state"""
+    
+    @staticmethod
+    def initialize():
+        """Initialize all session state variables"""
+        defaults = {
+            'current_index': 0,
+            'show_answer': False,
+            'score': 0,
+            'stats': {'Correct': 0, 'Incorrect': 0},
+            'practice_type': "MCQ",
+            'difficulty': "All",
+            'section': "All",
+            'user_answers': {},
+            'total_items': 0
+        }
+        for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+    
+    @staticmethod
+    def reset():
+        """Reset session to initial state"""
+    def __init__(self, questions: List[Question]):
+        self.questions = questions
+    
+    def render(self):
+        """Render flashcard interface"""
+        if not self.questions:
+            st.warning("No flashcards found for these filters.")
+            return
+        
+        # Update total items in session
+        st.session_state.total_items = len(self.questions)
+        
+        # Ensure current index is valid
+        if st.session_state.current_index >= len(self.questions):
+            st.session_state.current_index = 0
+        
+        st.markdown(f"**Flashcard Mode: {len(self.questions)} cards available**")
+        
+        # Navigation at top
+        NavigationButtons(len(self.questions)).render()
+        
+        st.markdown("---")
+        
+        # Current card
+        card = self.questions[st.session_state.current_index]
+        
+        st.markdown("### ❓ Question:")
+        st.markdown(f"<div style='background-color: #1e3a8a; padding: 20px; border-radius: 10px; color: white;'><h3>{card.question}</h3></div>", unsafe_allow_html=True)
+        
+        st.markdown("")
+        
+        if not st.session_state.show_answer:
+            if st.button("💡 Reveal Answer", use_container_width=True):
+                st.session_state.show_answer = True
+                st.rerun()
+        else:
+            st.success(f"**Answer:** {card.answer}")
+            st.info(f"**Details:** {card.details}")
+            st.caption(f"Section: {card.section} | Level: {card.level} | Topic: {card.topic}")
+            
+            if st.button("🔄 Hide Answer", use_container_width=True):
+                st.session_state.show_answer = False
+                st.rerun()
+        
+        # Navigation at bottom
+        st.markdown("---")
+        NavigationButtons(len(self.questions)).render()
+
+class MCQView(UIComponent):
+    """MCQ practice view"""
+    
+    def __init__(self, questions: List[MCQQuestion]):
+        self.questions = questions
+    
+    def render(self):
+        """Render MCQ interface"""
+        if not self.questions:
+            st.warning("No MCQs found for the selected filters.")
+            return
+        
+        # Update total items in session
+        st.session_state.total_items = len(self.questions)
+        
+        # Ensure current index is valid
+        if st.session_state.current_index >= len(self.questions):
+            st.session_state.current_index = 0
+        
+        st.markdown(f"**MCQ Mode: {len(self.questions)} questions available**")
+        
+        # Navigation at top
+        NavigationButtons(len(self.questions)).render()
+        
+        st.markdown("---")
+        
+        # Current question
+        question = self.questions[st.session_state.current_index]
+        self._render_question(question)
+        
+        # Navigation at bottom
+        st.markdown("---")
+        NavigationButtons(len(self.questions)).render()
+    
+    def _render_question(self, question: MCQQuestion):
+        """Render a single MCQ question"""
+        st.markdown(f"### Q{st.session_state.current_index + 1}: {question.question}")
+        
+        radio_options = [f"{k}: {v}" for k, v in sorted(question.options.items())]
+        key = f"mcq_{question.id}"
+        
+        # Check if user has already answered this question
+        previous_answer = st.session_state.user_answers.get(question.id)
+        default_index = None
+        if previous_answer:
+            for i, opt in enumerate(radio_options):
+                if opt.startswith(previous_answer):
+                    default_index = i
+                    break
+        
+        user_choice = st.radio("Select Answer:", radio_options, key=key, index=default_index)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("✅ Check Answer", key=f"btn_{key}", use_container_width=True):
+                if user_choice:
+                    selected = user_choice.split(":")[0].strip()
+                    st.session_state.user_answers[question.id] = selected
+                    st.rerun()
+                else:
+                    st.warning("Please select an option first.")
+        
+        with col2:
+            if st.button("🔄 Clear Answer", key=f"clear_{key}", use_container_width=True):
+                if question.id in st.session_state.user_answers:
+                    del st.session_state.user_answers[question.id]
+                    st.rerun()
+        
+        # Show result if answered
+        if question.id in st.session_state.user_answers:
+            selected = st.session_state.user_answers[question.id]
+            correct_text = question.options[question.answer]
+            
+            if selected == question.answer:
+                st.success(f"✅ Correct! The answer is **{question.answer}: {correct_text}**")
+            else:
+                st.error(f"❌ Incorrect. You selected **{selected}**. The correct answer is **{question.answer}: {correct_text}**")
+            
+            st.markdown("**All Options:**")
+            for opt_key in sorted(question.options.keys()):
+                opt_val = question.options[opt_key]
+                if opt_key == question.answer:
+                    st.markdown(f"✅ **{opt_key}: {opt_val}** (Correct)")
+                elif opt_key == selected:
+                    st.markdown(f"❌ **{opt_key}: {opt_val}** (Your answer)")
+                else:
+                    st.markdown(f"   {opt_key}: {opt_val}")
+            
+            st.info(f"**Explanation:** {question.details}")
+
+class CurrentAffairsView(UIComponent):
+    """Current Affairs view"""
+    
+    def __init__(self, news_items: List[NewsItem]):
+        self.news_items = news_items
+    
+    def render(self):
+        """Render current affairs interface"""
+        if not self.news_items:
+            st.warning("No Current Affairs found for these filters.")
+            return
+        
+        # Update total items in session
+        st.session_state.total_items = len(self.news_items)
+        
+        # Ensure current index is valid
+        if st.session_state.current_index >= len(self.news_items):
+            st.session_state.current_index = 0
+        
+        st.markdown(f"**Current Affairs Mode: {len(self.news_items)} news items available**")
+        
+        # Navigation at top
+        NavigationButtons(len(self.news_items)).render()
+        
+        st.markdown("---")
+        
+        # Current news item
+        item = self.news_items[st.session_state.current_index]
+        
+        st.markdown(f"### 📰 {item.title}")
+        st.write(item.summary)
+        st.caption(f"Section: {item.section} | Difficulty: {item.level}")
+        
+        # Navigation at bottom
+        st.markdown("---")
+        NavigationButtons(len(self.news_items)).render()
+
+# ==================== MAIN APPLICATION ====================
+
+class LoksewaApp:
+    """Main application controller"""
+    
+    def __init__(self):
+        self.data_manager = DataManager()
+        self.session_manager = SessionManager()
+        self.sidebar = Sidebar()
+    
+    def run(self):
+        """Run the application"""
+        st.set_page_config(
+            page_title="Loksewa Learning Hub",
+            layout="centered",
+            initial_sidebar_state="expanded"
+        )
+        
+        self.session_manager.initialize()
+        
+        st.title("🇳🇵 Loksewa Aayog Learning Hub")
+        st.markdown("Master your syllabus topics with AI-powered insights.")
+        st.markdown("---")
+        
+        # Get filters from sidebar
+        filters = self.sidebar.render()
+        
+        # Display header
+        st.header(f"Practice Type: :blue[{filters['practice_type']}]")
+        st.caption(f"Difficulty: **{filters['difficulty']}** | Section: **{filters['section']}**")
+        st.markdown("---")
+        
+        # Render appropriate view
+        self._render_view(filters)
+    
+    def _render_view(self, filters: Dict[str, str]):
+        """Render the appropriate view based on filters"""
+        practice_type = filters['practice_type']
+        section = filters['section']
+        difficulty = filters['difficulty']
+        
+        # Reset index when filters change
+        if (practice_type != st.session_state.practice_type or 
+            section != st.session_state.section or 
+            difficulty != st.session_state.difficulty):
+            st.session_state.current_index = 0
+            st.session_state.show_answer = False
+            st.session_state.user_answers = {}
+            st.session_state.practice_type = practice_type
+            st.session_state.section = section
+            st.session_state.difficulty = difficulty
+        
+        if practice_type == "Flashcard":
+            questions = self.data_manager.filter_data(
+                self.data_manager.flashcards, section, difficulty
+            )
+            FlashcardView(questions).render()
+        
+        elif practice_type == "MCQ":
+            questions = self.data_manager.filter_data(
+                self.data_manager.mcqs, section, difficulty
+            )
+            MCQView(questions).render()
+        
+        elif practice_type == "Current Affairs":
+            news = self.data_manager.filter_data(
+                self.data_manager.news, section, difficulty
+            )
+            CurrentAffairsView(news).render()
+
+# ==================== ENTRY POINT ====================
+
+if __name__ == "__main__":
+    app = LoksewaApp()
+    app.run()
